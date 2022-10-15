@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:;base64,="> <!-- Prevent request to favicon -->
+  <title>Test</title>
+  <style>
+    body {
+      background-color: darkgrey;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+    }
+
+    .subcontainer {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: 80%;
+    }
+
+    #title {
+      display: flex;
+      justify-content: center;
+      font-size: 40px;
+      font-family: Arial;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    #searchdiv {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      margin-top: 100px;
+      margin-bottom: 100px;
+    }
+
+    .tocenter {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    #searchBox {
+      width: 55%;
+      font-family: Arial;
+      font-size: 26px;
+    }
+
+    #videoList {
+      list-style-type: none;
+      font-family: Arial;
+      font-size: 30px;
+    }
+
+    #videoList li:hover {
+      background-color: #222;
+      color: #AAA;
+    }
+
+    #videoList a {
+      color: inherit; /* blue colors for links too */
+      text-decoration: inherit; /* no underline */
+    }
+
+    video {
+      width: 100%;
+    }
+  </style>
+  <script>
+
+    function editDistance(a, b) {
+      const m = [];
+      let i;
+      let j;
+
+      if (!(a && b)) return (b || a).length;
+
+      for (i = 0; i <= b.length; m[i] = [i++]);
+      for (j = 0; j <= a.length; m[0][j] = j++);
+
+      for (i = 1; i <= b.length; i++) {
+        for (j = 1; j <= a.length; j++) {
+          m[i][j] = b.charAt(i - 1) == a.charAt(j - 1)
+            ? m[i - 1][j - 1]
+            : m[i][j] = Math.min(
+              m[i - 1][j - 1] + 1, 
+              Math.min(m[i][j - 1] + 1, m[i - 1 ][j] + 1))
+        }
+      }
+
+      return m[b.length][a.length];
+    }
+
+    function isWholeWordIn(str, word) {
+      function escapeRegExp(string){
+        return string.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+      }
+
+      const regex = `\\b${escapeRegExp(word)}\\b`;
+      return new RegExp(regex, "i").test(str);
+    }
+
+    function showVideos(videos, ul) {
+      ul.innerText = '';
+      for (const video of videos) {
+        const a = document.createElement('a');
+        a.href = video.name;
+        a.innerText = video.name;
+        const li = document.createElement('li');
+        li.appendChild(a);
+        ul.appendChild(li);
+      }
+    }
+
+    async function main() {
+      const response = await fetch('/videos');
+      const videos = await response.json();
+      videos.sort();
+      
+      const container = document.getElementsByClassName('subcontainer')[0];
+      const searchBox = document.getElementById('searchBox');
+      const videoList = document.getElementById('videoList');
+      searchBox.addEventListener('input', event => {
+        const searchStr = event.target.value;
+        if (searchStr.length < 4) { return; }
+
+        const searchWords = searchStr.split(' ');
+
+        // First rank by fuzzy search
+        let rankedVideos = videos
+          .map(name => ({ name, score: name.length / editDistance(searchStr, name) }))
+
+        // Then add bonus points for whole words
+        rankedVideos = rankedVideos
+          .map(({ name, score }) => ({ name, score: score + searchWords.filter(w => isWholeWordIn(name, w)).length }))
+          .sort((a, b) => a.score < b.score ? 1 : -1);
+
+        showVideos(rankedVideos, videoList);
+      });
+      /*
+      for (const video of videos) {
+        const div = document.createElement('div');
+        div.id = 'title';
+        const span = document.createElement('span');
+        span.innerText = video;
+        div.appendChild(span);
+
+        const videoElt = document.createElement('video');
+        videoElt.setAttribute('controls', true);
+        videoElt.setAttribute('src', video);
+
+        container.appendChild(div);
+        container.appendChild(videoElt);
+      }
+      */
+    }
+
+    window.onload = main;
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="subcontainer">
+      <div id="searchdiv">
+        <div class="tocenter"><input id="searchBox" type="text" autofocus></div>
+        <div class="tocenter"><ul id="videoList"></ul></div>
+      </div>
+      <!-- <div id="title"><span>The November Man</span></div> -->
+      <!-- <video src="Maigret.Et.La.Grande.Perche.m4v" controls>Test</video> -->
+    </div>
+  </div>
+</body>
+</html>
